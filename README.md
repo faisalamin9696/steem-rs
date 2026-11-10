@@ -151,12 +151,21 @@ about 1.37 MB to 467 KB, and `npm audit` reports zero vulnerabilities. The
 remaining `PrivateKey` handling is import-time only: the form passes the WIF to
 Rust and clears it from component state.
 
-Residual hardening: `steem_build_sign_broadcast` is a signing oracle for the
-webview, so a compromised webview can request signatures even though it cannot
-read keys. A Rust-side native confirmation is the next step. `steem_rpc_call`
-is restricted to `condenser_api` and HTTPS/localhost, but it is still a network
-proxy; the CSP `connect-src` can be tightened once a fixed node allowlist is in
-place.
+Signing now requires a native OS confirmation. `steem_build_sign_broadcast` and
+`steem_sign_transaction` show the account, authority, node and operations in a
+Rust-owned dialog before touching the key, so a compromised webview cannot
+silently obtain a signature. The test-only `vault_sign_digest` is no longer
+registered as a Tauri command.
+
+Custom nodes must be trusted once in a native dialog and are persisted in
+`trusted-nodes.json`; built-in nodes are always trusted. `steem_rpc_call` is
+restricted to `condenser_api` and to the trusted-node set, and the production
+CSP `connect-src` is limited to IPC and CoinGecko.
+
+Import-time WIF exposure is limited to the paste form: the fields are password
+inputs with autocomplete off, and the keys are cleared on submit, cancel and
+unmount. A native file-import flow would be required to remove that last
+transient exposure.
 
 ## Releasing
 
