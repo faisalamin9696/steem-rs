@@ -132,21 +132,31 @@ cargo test
 
 ## SteemVault integration
 
-SteemVault now uses `steem-core` through Tauri commands:
+SteemVault uses `steem-core` and `steem-rpc` end-to-end through Tauri commands:
 
 - `vault_unlock` decrypts the vault in Rust and returns only account summaries.
 - `vault_add_account` / `vault_remove_account` merge keys and re-seal in Rust.
 - `vault_public_key` returns the STM public key for a loaded role.
 - `vault_sign_digest` signs a 32-byte transaction digest with a loaded key.
 - `vault_encrypt_memo` / `vault_decrypt_memo` use the account's memo key.
+- `steem_rpc_call` proxies read-only `condenser_api` calls through `steem-rpc`.
+- `steem_build_sign_broadcast` builds, signs and broadcasts a transaction.
+- `steem_transaction_fingerprint`, `steem_recover_public_key` and
+  `steem_verify_signature` power multisig.
+- `steem_validate_wif`, `steem_public_key_from_wif` and
+  `steem_validate_public_key` handle import validation.
 
-The webview still uses dsteem to build and broadcast transactions, but it never
-receives a private key after import. The remaining `PrivateKey` calls in the
-frontend are import-time WIF validation only.
+`@steempro/dsteem` has been removed from the webview. The JS bundle dropped from
+about 1.37 MB to 467 KB, and `npm audit` reports zero vulnerabilities. The
+remaining `PrivateKey` handling is import-time only: the form passes the WIF to
+Rust and clears it from component state.
 
-A future step can move transaction construction into `steem-core` as well,
-which would remove dsteem from the webview entirely and let the CSP
-`connect-src` be tightened to the known RPC hosts.
+Residual hardening: `steem_build_sign_broadcast` is a signing oracle for the
+webview, so a compromised webview can request signatures even though it cannot
+read keys. A Rust-side native confirmation is the next step. `steem_rpc_call`
+is restricted to `condenser_api` and HTTPS/localhost, but it is still a network
+proxy; the CSP `connect-src` can be tightened once a fixed node allowlist is in
+place.
 
 ## Releasing
 
