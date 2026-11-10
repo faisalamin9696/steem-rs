@@ -147,25 +147,23 @@ SteemVault uses `steem-core` and `steem-rpc` end-to-end through Tauri commands:
   `steem_validate_public_key` handle import validation.
 
 `@steempro/dsteem` has been removed from the webview. The JS bundle dropped from
-about 1.37 MB to 467 KB, and `npm audit` reports zero vulnerabilities. The
-remaining `PrivateKey` handling is import-time only: the form passes the WIF to
-Rust and clears it from component state.
+about 1.37 MB to 464 KB, and `npm audit` reports zero vulnerabilities. Account
+keys are imported through a native file dialog; Rust reads and validates the
+file, so WIFs never enter the webview.
 
 Signing now requires a native OS confirmation. `steem_build_sign_broadcast` and
 `steem_sign_transaction` show the account, authority, node and operations in a
 Rust-owned dialog before touching the key, so a compromised webview cannot
-silently obtain a signature. The test-only `vault_sign_digest` is no longer
-registered as a Tauri command.
+silently obtain a signature. The test-only `vault_sign_digest` and
+`vault_add_account` are no longer registered as Tauri commands.
 
-Custom nodes must be trusted once in a native dialog and are persisted in
-`trusted-nodes.json`; built-in nodes are always trusted. `steem_rpc_call` is
-restricted to `condenser_api` and to the trusted-node set, and the production
-CSP `connect-src` is limited to IPC and CoinGecko.
+Only the built-in Steem nodes are supported; custom node URLs are rejected.
+`steem_rpc_call` is restricted to `condenser_api` and the built-in set, and the
+production CSP `connect-src` is limited to IPC and CoinGecko.
 
-Import-time WIF exposure is limited to the paste form: the fields are password
-inputs with autocomplete off, and the keys are cleared on submit, cancel and
-unmount. A native file-import flow would be required to remove that last
-transient exposure.
+The key import screen is file-based: Rust opens the native file picker, reads
+the JSON, validates each WIF against the on-chain authority, and encrypts it.
+The webview receives only the account summary.
 
 ## Releasing
 
