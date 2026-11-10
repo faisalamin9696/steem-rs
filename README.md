@@ -48,7 +48,11 @@ steem-rs/
 - Operations: `vote`, `comment`, `transfer`, `transfer_to_vesting`,
   `withdraw_vesting`, `account_update`, `account_witness_vote`, `custom_json`,
   `claim_reward_balance`, `transfer_to_savings`, `transfer_from_savings`,
-  `delegate_vesting_shares`, `recurrent_transfer`.
+  `delegate_vesting_shares`, `recurrent_transfer`,
+  `set_withdraw_vesting_route`, `witness_update`, `update_proposal_votes`,
+  `change_recovery_account`, `request_account_recovery`,
+  `cancel_transfer_from_savings`, `account_witness_proxy`.
+- `Operation::from_tuple` parses Steem JSON operation tuples.
 - Transaction serialization, digest, signing and broadcast JSON.
 - Memo encryption/decryption compatible with dsteem (ECDH + SHA-512 +
   AES-256-CBC).

@@ -30,5 +30,6 @@ pub use codec::{Decoder, Encoder};
 pub use crypto::{transaction_digest, ChainId, PrivateKey, PublicKey, Signature, MAINNET_CHAIN_ID};
 pub use error::{Error, Result};
 pub use memo::Memo;
+pub use operation::ChainProperties;
 pub use operation::Operation;
-pub use transaction::{SignedTransaction, Transaction};
+pub use transaction::{expiration_from_chain_time, transaction_id, SignedTransaction, Transaction};

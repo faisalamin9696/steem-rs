@@ -138,3 +138,59 @@ impl RpcClient {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Read-only smoke test against a public node. Run with:
+    /// `cargo test -p steem-rpc -- --ignored`
+    #[test]
+    #[ignore]
+    fn live_node_smoke_test() {
+        let client = RpcClient::new("https://api.steemit.com").expect("client");
+        let props = client
+            .get_dynamic_global_properties()
+            .expect("dynamic global properties");
+        assert!(props.head_block_number > 0);
+        assert!(props.head_block_id.len() >= 16);
+
+        let accounts = client.get_accounts(&["steemit"]).expect("accounts");
+        assert!(!accounts.is_empty());
+    }
+
+    /// Build and sign a transaction from the live head block. Read-only: it
+    /// never broadcasts.
+    #[test]
+    #[ignore]
+    fn live_node_build_and_sign() {
+        use steem_core::{Asset, ChainId, Operation, PrivateKey, Transaction};
+
+        let client = RpcClient::new("https://api.steemit.com").expect("client");
+        let props = client
+            .get_dynamic_global_properties()
+            .expect("dynamic global properties");
+        let key = PrivateKey::from_wif("5KBVDxspWUB59evtsGy19euUbV2HmujS6DUMHU62XUMsDCoPdWS")
+            .expect("key");
+        let transaction = Transaction::from_chain(
+            props.head_block_number,
+            &props.head_block_id,
+            &props.time,
+            1,
+            vec![Operation::Transfer {
+                from: "alice".into(),
+                to: "bob".into(),
+                amount: "1.000 STEEM".parse::<Asset>().expect("asset"),
+                memo: "smoke test".into(),
+            }],
+        )
+        .expect("transaction");
+        let signed = transaction.sign(&key, &ChainId::MAINNET).expect("sign");
+        assert_eq!(
+            signed
+                .recover_public_keys(&ChainId::MAINNET)
+                .expect("recover"),
+            vec![key.public_key().expect("public key")]
+        );
+    }
+}

@@ -992,7 +992,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "steem"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "steem-core",
  "steem-rpc",
@@ -1000,7 +1000,7 @@ dependencies = [
 
 [[package]]
 name = "steem-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "aes",
  "bs58",
@@ -1019,7 +1019,7 @@ dependencies = [
 
 [[package]]
 name = "steem-rpc"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "reqwest",
  "serde",

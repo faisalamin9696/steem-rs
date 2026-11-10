@@ -1,4 +1,4 @@
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::codec::Encoder;
 use crate::crypto::{transaction_digest, ChainId, PrivateKey, PublicKey, Signature};
@@ -30,6 +30,74 @@ impl Transaction {
             operations,
             extensions: Vec::new(),
         }
+    }
+
+    /// Build a transaction from the node's head block and chain time.
+    pub fn from_chain(
+        head_block_number: u32,
+        head_block_id: &str,
+        chain_time: &str,
+        expiration_minutes: u32,
+        operations: Vec<Operation>,
+    ) -> Result<Self> {
+        Ok(Self {
+            ref_block_num: (head_block_number & 0xffff) as u16,
+            ref_block_prefix: parse_ref_block_prefix(head_block_id)?,
+            expiration: expiration_from_chain_time(chain_time, expiration_minutes)?,
+            operations,
+            extensions: Vec::new(),
+        })
+    }
+
+    /// Parse the JSON shape used by the wallet and by Steem's broadcast API.
+    pub fn from_json_value(value: &Value) -> Result<Self> {
+        let object = value.as_object().ok_or_else(|| {
+            Error::InvalidTransaction("transaction must be an object".to_string())
+        })?;
+        let ref_block_num = object
+            .get("ref_block_num")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| Error::InvalidTransaction("missing ref_block_num".to_string()))?;
+        let ref_block_num = u16::try_from(ref_block_num)
+            .map_err(|_| Error::InvalidTransaction("ref_block_num is out of range".to_string()))?;
+        let ref_block_prefix = object
+            .get("ref_block_prefix")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| Error::InvalidTransaction("missing ref_block_prefix".to_string()))?;
+        let ref_block_prefix = u32::try_from(ref_block_prefix).map_err(|_| {
+            Error::InvalidTransaction("ref_block_prefix is out of range".to_string())
+        })?;
+        let expiration = object
+            .get("expiration")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::InvalidTransaction("missing expiration".to_string()))?
+            .to_string();
+        let operations = object
+            .get("operations")
+            .and_then(Value::as_array)
+            .ok_or_else(|| Error::InvalidTransaction("missing operations".to_string()))?
+            .iter()
+            .map(Operation::from_tuple)
+            .collect::<Result<Vec<_>>>()?;
+        let extensions = object
+            .get("extensions")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(Self {
+            ref_block_num,
+            ref_block_prefix,
+            expiration,
+            operations,
+            extensions,
+        })
     }
 
     pub fn expiration_timestamp(&self) -> Result<u32> {
@@ -125,6 +193,32 @@ impl SignedTransaction {
     }
 }
 
+/// Add `minutes` to a chain time string (`YYYY-MM-DDTHH:MM:SS`).
+pub fn expiration_from_chain_time(chain_time: &str, minutes: u32) -> Result<String> {
+    let trimmed = chain_time.trim_end_matches('Z');
+    let parsed = chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S")
+        .or_else(|_| chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S%.f"))
+        .map_err(|_| Error::InvalidTransaction(format!("invalid chain time {chain_time:?}")))?;
+    let expiration = parsed + chrono::Duration::minutes(minutes as i64);
+    Ok(expiration.format("%Y-%m-%dT%H:%M:%S").to_string())
+}
+
+fn parse_ref_block_prefix(head_block_id: &str) -> Result<u32> {
+    let bytes = hex::decode(head_block_id)
+        .map_err(|_| Error::InvalidTransaction("invalid head block id".to_string()))?;
+    if bytes.len() < 8 {
+        return Err(Error::InvalidTransaction(
+            "head block id is too short".to_string(),
+        ));
+    }
+    Ok(u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]))
+}
+
+/// dsteem-compatible transaction id: first 20 bytes of SHA-256(serialized tx).
+pub fn transaction_id(transaction_bytes: &[u8]) -> String {
+    hex::encode(crate::crypto::sha256(transaction_bytes))[..40].to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,6 +253,17 @@ mod tests {
         assert_eq!(
             hex::encode(transaction.digest(&ChainId::MAINNET).unwrap()),
             "f34cede61c92ea5431c7f90e0ed5c52d97f8d8ba8a4ccc7992e26d4abfb076d2"
+        );
+    }
+
+    #[test]
+    fn json_round_trip_preserves_serialization() {
+        let transaction = vector_transaction();
+        let json = transaction.to_json_value();
+        let parsed = Transaction::from_json_value(&json).expect("parse transaction");
+        assert_eq!(
+            parsed.serialize().unwrap(),
+            transaction.serialize().unwrap()
         );
     }
 
